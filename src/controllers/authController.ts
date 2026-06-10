@@ -252,3 +252,36 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: (err as Error).message });
   }
 };
+
+/**
+ * POST /api/auth/logout-all
+ * Revoke every active refresh token for the authenticated user (log out of all
+ * sessions/devices). Requires a valid access token; identity comes from the JWT.
+ */
+export const logoutAll = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated.' });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('refresh_tokens')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('user_id', req.user.sub)
+      .is('revoked_at', null)
+      .select('id');
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.status(200).json({
+      message: 'Logged out of all sessions.',
+      revokedCount: data?.length ?? 0,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
