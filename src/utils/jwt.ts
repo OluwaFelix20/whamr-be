@@ -1,7 +1,7 @@
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { JwtUserPayload } from '../types/auth';
 
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '7d';
+const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN ?? '15m';
 
 /**
  * Read the secret lazily so it is resolved after dotenv has populated the
@@ -17,7 +17,7 @@ const getSecret = (): string => {
 
 /** Sign a short-lived access token for an authenticated user. */
 export const signToken = (payload: JwtUserPayload): string =>
-  jwt.sign(payload, getSecret(), { expiresIn: JWT_EXPIRES_IN } as SignOptions);
+  jwt.sign(payload, getSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES_IN } as SignOptions);
 
 /** Verify a token and return its payload, or throw if invalid/expired. */
 export const verifyToken = (token: string): JwtUserPayload =>

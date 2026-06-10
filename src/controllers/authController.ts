@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { supabase } from '../config/supabase';
 import { PublicUser, User } from '../types/user';
 import { signToken } from '../utils/jwt';
+import { generateRefreshToken, hashToken } from '../utils/refreshToken';
 
 const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS ?? 10);
 
@@ -10,6 +11,29 @@ const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS ?? 10);
 const toPublicUser = (user: User): PublicUser => {
   const { password_hash, ...publicUser } = user;
   return publicUser;
+};
+
+/**
+ * Issue an access token and a freshly-persisted refresh token for a user.
+ * The raw refresh token is returned to the caller; only its hash is stored.
+ */
+const issueTokens = async (
+  user: User
+): Promise<{ accessToken: string; refreshToken: string }> => {
+  const accessToken = signToken({ sub: user.id, email: user.email });
+  const { token, tokenHash, expiresAt } = generateRefreshToken();
+
+  const { error } = await supabase.from('refresh_tokens').insert({
+    user_id: user.id,
+    token_hash: tokenHash,
+    expires_at: expiresAt,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { accessToken, refreshToken: token };
 };
 
 /**
@@ -46,8 +70,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     const user = data as User;
-    const token = signToken({ sub: user.id, email: user.email });
-    res.status(201).json({ user: toPublicUser(user), token });
+    const { accessToken, refreshToken } = await issueTokens(user);
+    res.status(201).json({ user: toPublicUser(user), accessToken, refreshToken });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -84,8 +108,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const authedUser = user as User;
-    const token = signToken({ sub: authedUser.id, email: authedUser.email });
-    res.status(200).json({ user: toPublicUser(authedUser), token });
+    const { accessToken, refreshToken } = await issueTokens(authedUser);
+    res.status(200).json({ user: toPublicUser(authedUser), accessToken, refreshToken });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -121,6 +145,109 @@ export const me = async (req: Request, res: Response): Promise<void> => {
     }
 
     res.status(200).json({ user: toPublicUser(user as User) });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
+interface RefreshTokenRow {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+/**
+ * POST /api/auth/refresh
+ * Exchange a valid refresh token for a new access + refresh token pair.
+ * Implements rotation: the presented token is revoked and replaced. Reuse of
+ * an already-revoked token is treated as theft and revokes the whole family.
+ */
+export const refresh = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const tokenHash = hashToken(req.body.refreshToken);
+
+    const { data: row, error } = await supabase
+      .from('refresh_tokens')
+      .select('*')
+      .eq('token_hash', tokenHash)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    if (!row) {
+      res.status(401).json({ error: 'Invalid refresh token.' });
+      return;
+    }
+
+    const tokenRow = row as RefreshTokenRow;
+
+    // Reuse of a revoked token => likely stolen. Revoke every active token for
+    // this user so an attacker cannot keep refreshing.
+    if (tokenRow.revoked_at) {
+      await supabase
+        .from('refresh_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('user_id', tokenRow.user_id)
+        .is('revoked_at', null);
+      res.status(401).json({ error: 'Refresh token has been revoked.' });
+      return;
+    }
+
+    if (new Date(tokenRow.expires_at).getTime() < Date.now()) {
+      res.status(401).json({ error: 'Refresh token has expired.' });
+      return;
+    }
+
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', tokenRow.user_id)
+      .maybeSingle();
+
+    if (userError) {
+      res.status(500).json({ error: userError.message });
+      return;
+    }
+
+    if (!user) {
+      res.status(401).json({ error: 'Invalid refresh token.' });
+      return;
+    }
+
+    // Rotate: revoke the presented token, then issue a fresh pair.
+    await supabase
+      .from('refresh_tokens')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', tokenRow.id);
+
+    const { accessToken, refreshToken } = await issueTokens(user as User);
+    res.status(200).json({ accessToken, refreshToken });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
+/**
+ * POST /api/auth/logout
+ * Revoke a refresh token. Idempotent: always 200 so it cannot be used to probe
+ * which tokens exist.
+ */
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const tokenHash = hashToken(req.body.refreshToken);
+
+    await supabase
+      .from('refresh_tokens')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('token_hash', tokenHash)
+      .is('revoked_at', null);
+
+    res.status(200).json({ message: 'Logged out.' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
