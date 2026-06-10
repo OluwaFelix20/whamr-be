@@ -11,7 +11,7 @@ whamr_BE/
 │   ├── config/
 │   │   └── supabase.ts        # Server-side Supabase client (service_role)
 │   ├── controllers/          # Request handlers / business logic
-│   │   ├── authController.ts  # register, login, refresh, logout, logout-all, me
+│   │   ├── authController.ts  # register, login, refresh, logout(-all), me, forgot/reset-password
 │   │   └── userController.ts  # getUsers, getUserById
 │   ├── middleware/
 │   │   ├── authMiddleware.ts  # authenticate — verify JWT + token_version kill-switch
@@ -21,14 +21,17 @@ whamr_BE/
 │   │   └── userRoutes.ts      # /api/users
 │   ├── utils/
 │   │   ├── jwt.ts             # sign/verify short-lived access tokens
-│   │   └── refreshToken.ts    # opaque refresh tokens, SHA-256 hashed
+│   │   ├── refreshToken.ts    # opaque refresh tokens, SHA-256 hashed
+│   │   ├── passwordReset.ts   # single-use reset tokens
+│   │   └── mailer.ts          # send reset email (dev: logs link)
 │   ├── validators/           # Zod schemas (auth, user params)
 │   └── types/                # User, JWT payload, Express augmentation
 └── supabase/
     └── migrations/           # SQL migrations (schema = source of truth)
         ├── 0001_create_users_table.sql
         ├── 0002_create_refresh_tokens_table.sql
-        └── 0003_add_token_version_to_users.sql
+        ├── 0003_add_token_version_to_users.sql
+        └── 0004_create_password_reset_tokens_table.sql
 ```
 
 ## Setup
@@ -56,6 +59,7 @@ whamr_BE/
    - `0001_create_users_table.sql`
    - `0002_create_refresh_tokens_table.sql`
    - `0003_add_token_version_to_users.sql`
+   - `0004_create_password_reset_tokens_table.sql`
 
 ## Run
 
@@ -94,6 +98,8 @@ Set this before `npm install` and before running the server.
 | POST   | `/api/auth/refresh`     | 🔓   | `refreshToken`                | Rotate tokens. Returns a new `{ accessToken, refreshToken }`.               |
 | POST   | `/api/auth/logout`      | 🔓   | `refreshToken`                | Revoke one refresh token (idempotent).                                      |
 | POST   | `/api/auth/logout-all`  | 🔑   | —                             | Kill-switch: revoke all refresh tokens **and** all access tokens.           |
+| POST   | `/api/auth/forgot-password` | 🔓 | `email`                      | Email a single-use reset link. Always 200 (no email enumeration).           |
+| POST   | `/api/auth/reset-password`  | 🔓 | `token, newPassword`         | Set a new password; invalidates all existing sessions.                      |
 | GET    | `/api/auth/me`          | 🔑   | —                             | Current authenticated user.                                                 |
 | GET    | `/api/users`            | 🔑   | —                             | List users.                                                                 |
 | GET    | `/api/users/:id`        | 🔑   | —                             | Get a user by id (UUID).                                                     |

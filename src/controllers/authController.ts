@@ -4,6 +4,8 @@ import { supabase } from '../config/supabase';
 import { PublicUser, User } from '../types/user';
 import { signToken } from '../utils/jwt';
 import { generateRefreshToken, hashToken } from '../utils/refreshToken';
+import { generatePasswordResetToken } from '../utils/passwordReset';
+import { sendPasswordResetEmail } from '../utils/mailer';
 
 const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS ?? 10);
 
@@ -294,6 +296,136 @@ export const logoutAll = async (req: Request, res: Response): Promise<void> => {
       message: 'Logged out of all sessions.',
       revokedCount: data?.length ?? 0,
     });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
+/**
+ * POST /api/auth/forgot-password
+ * Issue a single-use password reset token and email it to the user. Always
+ * responds 200 with a generic message so the endpoint cannot be used to
+ * enumerate which emails are registered.
+ */
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (user) {
+      // Invalidate any earlier unused reset tokens so only the newest is valid.
+      await supabase
+        .from('password_reset_tokens')
+        .update({ used_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .is('used_at', null);
+
+      const { token, expiresAt } = generatePasswordResetToken();
+      const { error } = await supabase.from('password_reset_tokens').insert({
+        user_id: user.id,
+        token_hash: hashToken(token),
+        expires_at: expiresAt,
+      });
+
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
+
+      await sendPasswordResetEmail(email, token);
+    }
+
+    res.status(200).json({
+      message: 'If an account exists for that email, a password reset link has been sent.',
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
+interface PasswordResetTokenRow {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  expires_at: string;
+  used_at: string | null;
+}
+
+/**
+ * POST /api/auth/reset-password
+ * Consume a valid reset token, set the new password, and invalidate all
+ * existing sessions (bump token_version + revoke refresh tokens).
+ */
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token, newPassword } = req.body;
+    const tokenHash = hashToken(token);
+
+    const { data: row, error } = await supabase
+      .from('password_reset_tokens')
+      .select('*')
+      .eq('token_hash', tokenHash)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    const resetRow = row as PasswordResetTokenRow | null;
+
+    if (!resetRow || resetRow.used_at || new Date(resetRow.expires_at).getTime() < Date.now()) {
+      res.status(400).json({ error: 'Invalid or expired reset token.' });
+      return;
+    }
+
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('token_version')
+      .eq('id', resetRow.user_id)
+      .maybeSingle();
+
+    if (userError) {
+      res.status(500).json({ error: userError.message });
+      return;
+    }
+
+    if (!user) {
+      res.status(400).json({ error: 'Invalid or expired reset token.' });
+      return;
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+    // Set the new password and bump token_version to kill all access tokens.
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password_hash, token_version: user.token_version + 1 })
+      .eq('id', resetRow.user_id);
+
+    if (updateError) {
+      res.status(500).json({ error: updateError.message });
+      return;
+    }
+
+    // Consume the token and revoke all refresh tokens (full logout).
+    await supabase
+      .from('password_reset_tokens')
+      .update({ used_at: new Date().toISOString() })
+      .eq('id', resetRow.id);
+
+    await supabase
+      .from('refresh_tokens')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('user_id', resetRow.user_id)
+      .is('revoked_at', null);
+
+    res.status(200).json({ message: 'Password has been reset. Please log in again.' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

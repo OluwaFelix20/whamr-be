@@ -1,8 +1,23 @@
 import { Router } from 'express';
-import { register, login, me, refresh, logout, logoutAll } from '../controllers/authController';
+import {
+  register,
+  login,
+  me,
+  refresh,
+  logout,
+  logoutAll,
+  forgotPassword,
+  resetPassword,
+} from '../controllers/authController';
 import { authenticate } from '../middleware/authMiddleware';
 import { validate } from '../middleware/validate';
-import { registerSchema, loginSchema, refreshTokenSchema } from '../validators/authValidators';
+import {
+  registerSchema,
+  loginSchema,
+  refreshTokenSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from '../validators/authValidators';
 
 const router = Router();
 
@@ -11,6 +26,8 @@ router.post('/login', validate(loginSchema), login);
 router.post('/refresh', validate(refreshTokenSchema), refresh);
 router.post('/logout', validate(refreshTokenSchema), logout);
 router.post('/logout-all', authenticate, logoutAll);
+router.post('/forgot-password', validate(forgotPasswordSchema), forgotPassword);
+router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
 router.get('/me', authenticate, me);
 
 export default router;
