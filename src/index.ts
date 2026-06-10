@@ -21,6 +21,16 @@ app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Root — friendly landing instead of a bare 404.
+app.get('/', (_req: Request, res: Response) => {
+  res.status(200).json({
+    name: 'whamr-be',
+    status: 'ok',
+    health: '/health',
+    api: '/api/auth, /api/users',
+  });
+});
+
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok' });
