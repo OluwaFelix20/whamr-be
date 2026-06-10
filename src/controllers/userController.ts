@@ -3,7 +3,7 @@ import { supabase } from '../config/supabase';
 import { PublicUser, User } from '../types/user';
 
 const toPublicUser = (user: User): PublicUser => {
-  const { password_hash, ...publicUser } = user;
+  const { password_hash, token_version, ...publicUser } = user;
   return publicUser;
 };
 

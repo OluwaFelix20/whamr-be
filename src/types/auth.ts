@@ -2,6 +2,7 @@
 export interface JwtUserPayload {
   sub: string; // user id
   email: string;
+  ver: number; // user's token_version at issue time; checked for kill-switch
 }
 
 // Make `req.user` available (and typed) on every Express request.

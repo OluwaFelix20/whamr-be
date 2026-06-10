@@ -7,9 +7,9 @@ import { generateRefreshToken, hashToken } from '../utils/refreshToken';
 
 const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS ?? 10);
 
-/** Strip the password hash before sending a user back to the client. */
+/** Strip the password hash and internals before sending a user to the client. */
 const toPublicUser = (user: User): PublicUser => {
-  const { password_hash, ...publicUser } = user;
+  const { password_hash, token_version, ...publicUser } = user;
   return publicUser;
 };
 
@@ -20,7 +20,7 @@ const toPublicUser = (user: User): PublicUser => {
 const issueTokens = async (
   user: User
 ): Promise<{ accessToken: string; refreshToken: string }> => {
-  const accessToken = signToken({ sub: user.id, email: user.email });
+  const accessToken = signToken({ sub: user.id, email: user.email, ver: user.token_version });
   const { token, tokenHash, expiresAt } = generateRefreshToken();
 
   const { error } = await supabase.from('refresh_tokens').insert({
@@ -274,6 +274,19 @@ export const logoutAll = async (req: Request, res: Response): Promise<void> => {
 
     if (error) {
       res.status(500).json({ error: error.message });
+      return;
+    }
+
+    // Bump token_version to instantly invalidate all outstanding access tokens
+    // (including the one used for this request). req.user.ver is the current
+    // value — the authenticate middleware just verified it matches the DB.
+    const { error: versionError } = await supabase
+      .from('users')
+      .update({ token_version: req.user.ver + 1 })
+      .eq('id', req.user.sub);
+
+    if (versionError) {
+      res.status(500).json({ error: versionError.message });
       return;
     }
 
