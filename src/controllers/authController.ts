@@ -337,7 +337,14 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
         return;
       }
 
-      await sendPasswordResetEmail(email, token);
+      // A delivery failure must not change the response (that would leak which
+      // emails are registered). Log it server-side and still return the generic
+      // 200 — the token is stored, so the user can simply request another link.
+      try {
+        await sendPasswordResetEmail(email, token);
+      } catch (mailErr) {
+        console.error('Password reset email failed to send:', mailErr);
+      }
     }
 
     res.status(200).json({
