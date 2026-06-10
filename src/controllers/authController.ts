@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import { supabase } from '../config/supabase';
 import { PublicUser, User } from '../types/user';
+import { signToken } from '../utils/jwt';
 
 const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS ?? 10);
 
@@ -49,7 +50,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.status(201).json({ user: toPublicUser(data as User) });
+    const user = data as User;
+    const token = signToken({ sub: user.id, email: user.email });
+    res.status(201).json({ user: toPublicUser(user), token });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -90,7 +93,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.status(200).json({ user: toPublicUser(user as User) });
+    const authedUser = user as User;
+    const token = signToken({ sub: authedUser.id, email: authedUser.email });
+    res.status(200).json({ user: toPublicUser(authedUser), token });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
