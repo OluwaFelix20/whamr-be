@@ -100,3 +100,38 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: (err as Error).message });
   }
 };
+
+/**
+ * GET /api/auth/me
+ * Return the currently authenticated user. Requires the `authenticate`
+ * middleware to have populated `req.user` from a valid JWT.
+ */
+export const me = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated.' });
+      return;
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.user.sub)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    // Token is valid but the user no longer exists (e.g. deleted).
+    if (!user) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    res.status(200).json({ user: toPublicUser(user as User) });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
