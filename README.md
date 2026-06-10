@@ -69,6 +69,25 @@ npm run build   # compile TypeScript to dist/
 npm start       # run the compiled build
 ```
 
+## Deploy (Render)
+
+This repo ships a `render.yaml` blueprint.
+
+1. Push to GitHub, then in Render: **New → Blueprint** and select this repo.
+   Render reads `render.yaml` and creates the `whamr-be` web service
+   (build: `npm ci --include=dev && npm run build`, start: `npm start`,
+   health check: `/health`).
+2. Set the three secret env vars in the Render dashboard (marked
+   `sync: false`): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+   `RESEND_API_KEY`. `JWT_SECRET` is auto-generated; the rest have defaults in
+   the blueprint. `PORT` is injected by Render — don't set it.
+3. After it's live, point the frontend at it: set `DEPLOYED_API` in
+   `whamr_FE/reset-password.html` to the Render URL, and make sure this
+   service's `CORS_ALLOWED_ORIGINS` includes the frontend origin.
+
+Note: `NODE_OPTIONS=--use-system-ca` is **only** for local machines behind a
+TLS-intercepting proxy (see below) — do not set it on Render.
+
 ## Network note (TLS-intercepting proxies)
 
 If you are behind a corporate/managed network that inspects TLS, Node and npm

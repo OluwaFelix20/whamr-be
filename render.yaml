@@ -1,0 +1,45 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: push this repo, then in Render → New → Blueprint, point at this repo.
+# Render reads this file and creates the service. Set the three `sync: false`
+# secrets in the dashboard after the first deploy (or when prompted).
+services:
+  - type: web
+    name: whamr-be
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    # devDependencies (TypeScript) are needed to build; --include=dev forces
+    # them even when Render sets NODE_ENV=production.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # PORT is provided by Render automatically — do not set it.
+      - key: BCRYPT_SALT_ROUNDS
+        value: "10"
+      - key: ACCESS_TOKEN_EXPIRES_IN
+        value: 15m
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: "30"
+      - key: PASSWORD_RESET_TTL_MINUTES
+        value: "60"
+      - key: APP_BASE_URL
+        value: https://whamr-application.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://whamr-application.vercel.app
+      - key: MAIL_FROM
+        value: Whamr <onboarding@resend.dev>
+      # Strong secret generated once by Render and kept stable across deploys.
+      - key: JWT_SECRET
+        generateValue: true
+      # Secrets — set these in the Render dashboard (never commit them).
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
