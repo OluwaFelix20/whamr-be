@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { getUsers, getUserById } from '../controllers/userController';
 import { authenticate } from '../middleware/authMiddleware';
+import { validate } from '../middleware/validate';
+import { userIdParamSchema } from '../validators/userValidators';
 
 const router = Router();
 
@@ -8,6 +10,6 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', getUsers);
-router.get('/:id', getUserById);
+router.get('/:id', validate(userIdParamSchema, 'params'), getUserById);
 
 export default router;

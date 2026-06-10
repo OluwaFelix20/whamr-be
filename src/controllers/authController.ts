@@ -20,11 +20,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password, full_name } = req.body;
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password are required.' });
-      return;
-    }
-
     // Reject duplicate emails up front for a clearer error.
     const { data: existing } = await supabase
       .from('users')
@@ -65,11 +60,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password are required.' });
-      return;
-    }
 
     const { data: user, error } = await supabase
       .from('users')
