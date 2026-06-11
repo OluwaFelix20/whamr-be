@@ -38,6 +38,9 @@ services:
       # account's id. Authors can always delete their own comments regardless.
       - key: ADMIN_USER_IDS
         sync: false
+      # Max sticker upload size in bytes (buffered in memory). Default 25 MB.
+      - key: STICKER_MAX_UPLOAD_BYTES
+        value: "26214400"
       # Strong secret generated once by Render and kept stable across deploys.
       - key: JWT_SECRET
         generateValue: true

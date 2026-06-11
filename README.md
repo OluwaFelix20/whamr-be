@@ -12,19 +12,27 @@ whamr_BE/
 │   │   └── supabase.ts        # Server-side Supabase client (service_role)
 │   ├── controllers/          # Request handlers / business logic
 │   │   ├── authController.ts  # register, login, refresh, logout(-all), me, forgot/reset-password
-│   │   └── userController.ts  # getUsers, getUserById
+│   │   ├── userController.ts  # getUsers, getUserById
+│   │   ├── favoritesController.ts # list/add/remove favourites
+│   │   ├── commentsController.ts  # list/create/delete/report comments
+│   │   └── stickerController.ts   # convert / tray / validate (HTTP <-> sticker service)
+│   ├── services/             # Framework-free business logic
+│   │   └── stickerService.ts  # sharp pipeline: 512x512 WebP, byte-budget, validation
 │   ├── middleware/
 │   │   ├── authMiddleware.ts  # authenticate — verify JWT + token_version kill-switch
 │   │   └── validate.ts        # Zod request validation
 │   ├── routes/               # Route definitions
 │   │   ├── authRoutes.ts      # /api/auth
-│   │   └── userRoutes.ts      # /api/users
+│   │   ├── userRoutes.ts      # /api/users
+│   │   ├── favoritesRoutes.ts # /api/favorites
+│   │   ├── commentsRoutes.ts  # /api/comments
+│   │   └── stickerRoutes.ts   # /api/stickers (multer upload + auth)
 │   ├── utils/
 │   │   ├── jwt.ts             # sign/verify short-lived access tokens
 │   │   ├── refreshToken.ts    # opaque refresh tokens, SHA-256 hashed
 │   │   ├── passwordReset.ts   # single-use reset tokens
 │   │   └── mailer.ts          # send reset email (dev: logs link)
-│   ├── validators/           # Zod schemas (auth, user params)
+│   ├── validators/           # Zod schemas (auth, user params, community, sticker)
 │   └── types/                # User, JWT payload, Express augmentation
 └── supabase/
     └── migrations/           # SQL migrations (schema = source of truth)
@@ -129,6 +137,9 @@ Set this before `npm install` and before running the server.
 | POST   | `/api/comments`         | 🔑   | `meme_id, text`               | Post a comment (author name derived from email). Returns `{ comment }`.     |
 | DELETE | `/api/comments/:id`     | 🔑   | —                             | Delete a comment (author or `ADMIN_USER_IDS`).                              |
 | POST   | `/api/comments/:id/report` | 🔑 | —                            | Flag a comment for moderation.                                              |
+| POST   | `/api/stickers/process` | 🔑   | `image` (file), `fit?`        | Convert an image to a Meta-compliant 512×512 WebP sticker. Returns WebP bytes. |
+| POST   | `/api/stickers/tray`    | 🔑   | `image` (file), `fit?`        | Build a 96×96 PNG tray icon (≤50 KB) for a pack. Returns PNG bytes.         |
+| POST   | `/api/stickers/validate`| 🔑   | `image` (file)                | Grade a file against the sticker spec. Returns `{ valid, checks, … }`.      |
 
 ### Authentication
 
@@ -144,3 +155,43 @@ Set this before `npm install` and before running the server.
 
 Error responses are JSON: `{ "error": "..." }`, with validation failures adding
 `details: [{ field, message }]`.
+
+### Stickers
+
+The `/api/stickers` routes turn arbitrary art into assets that satisfy Meta's
+WhatsApp sticker requirements — built ahead of Meta Business API approval, where
+non-compliant files are rejected outright. Image processing uses
+[`sharp`](https://sharp.pixelplumbing.com/) (libvips).
+
+The spec we enforce (see [Meta's media docs](https://developers.facebook.com/docs/whatsapp/api/media#stickers)):
+
+| Asset    | Dimensions | Format | Max size |
+| -------- | ---------- | ------ | -------- |
+| Static sticker   | 512×512 | WebP | 100 KB |
+| Animated sticker | 512×512 | WebP | 500 KB |
+| Tray icon        | 96×96   | PNG  | 50 KB  |
+
+**Request** — `multipart/form-data` with:
+
+- `image` *(required)* — the source file (PNG/JPEG/WebP/GIF/TIFF). Animation is
+  auto-detected; animated inputs stay animated.
+- `fit` *(optional)* — `contain` (default; letterbox onto transparency, never
+  crops) or `cover` (fill the square and crop the overflow).
+
+**`/process` and `/tray`** stream back the raw image bytes (`image/webp` /
+`image/png`) so the result can be piped straight into a `.wastickers` pack or
+uploaded to storage. The derived properties come back as `X-Sticker-*` response
+headers (`Animated`, `Frames`, `Width`, `Height`, `Bytes`, `Quality`), exposed
+via CORS so a browser `fetch` can read them. Append `?download=1` to force a
+file download. Quality is auto-stepped down until the file fits its byte budget;
+if even the lowest setting overflows, the response is `422` rather than a
+non-compliant sticker.
+
+**`/validate`** transforms nothing — it grades the uploaded file and returns
+`{ valid, format, width, height, bytes, animated, frames, checks[] }`, where each
+check reports `{ name, pass, detail }`. The request is `200` regardless of the
+verdict; only an unreadable image is an error.
+
+Status codes: `400` missing/empty image · `413` upload over
+`STICKER_MAX_UPLOAD_BYTES` (default 25 MB) · `415` unsupported/undecodable
+image · `422` cannot be compressed within spec.

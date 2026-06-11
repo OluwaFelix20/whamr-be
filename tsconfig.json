@@ -5,6 +5,14 @@
     "moduleResolution": "node16",
     "rootDir": "./src",
     "outDir": "./dist",
+    // sharp ships its types via package.json `types`, but its `exports` map has
+    // no `types` condition, so node16 module resolution can't find them. Point
+    // the compiler at the bundled declarations directly; the runtime `require`
+    // still resolves the package normally. (paths resolve relative to this
+    // tsconfig; no baseUrl needed on modern TypeScript.)
+    "paths": {
+      "sharp": ["./node_modules/sharp/lib/index.d.ts"]
+    },
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,

@@ -5,6 +5,7 @@ import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import favoritesRoutes from './routes/favoritesRoutes';
 import commentsRoutes from './routes/commentsRoutes';
+import stickerRoutes from './routes/stickerRoutes';
 
 dotenv.config();
 
@@ -29,7 +30,7 @@ app.get('/', (_req: Request, res: Response) => {
     name: 'whamr-be',
     status: 'ok',
     health: '/health',
-    api: '/api/auth, /api/users, /api/favorites, /api/comments',
+    api: '/api/auth, /api/users, /api/favorites, /api/comments, /api/stickers',
   });
 });
 
@@ -43,6 +44,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/comments', commentsRoutes);
+app.use('/api/stickers', stickerRoutes);
 
 // 404 fallback
 app.use((_req: Request, res: Response) => {
