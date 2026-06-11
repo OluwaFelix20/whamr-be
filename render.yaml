@@ -33,6 +33,11 @@ services:
         value: https://whamr-application.vercel.app
       - key: MAIL_FROM
         value: Whamr <onboarding@resend.dev>
+      # Comma-separated backend user ids allowed to delete ANY comment
+      # (moderation). Leave blank for none; set in the dashboard to your admin
+      # account's id. Authors can always delete their own comments regardless.
+      - key: ADMIN_USER_IDS
+        sync: false
       # Strong secret generated once by Render and kept stable across deploys.
       - key: JWT_SECRET
         generateValue: true

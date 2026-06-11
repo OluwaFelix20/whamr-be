@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
+import favoritesRoutes from './routes/favoritesRoutes';
+import commentsRoutes from './routes/commentsRoutes';
 
 dotenv.config();
 
@@ -27,7 +29,7 @@ app.get('/', (_req: Request, res: Response) => {
     name: 'whamr-be',
     status: 'ok',
     health: '/health',
-    api: '/api/auth, /api/users',
+    api: '/api/auth, /api/users, /api/favorites, /api/comments',
   });
 });
 
@@ -39,6 +41,8 @@ app.get('/health', (_req: Request, res: Response) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/favorites', favoritesRoutes);
+app.use('/api/comments', commentsRoutes);
 
 // 404 fallback
 app.use((_req: Request, res: Response) => {

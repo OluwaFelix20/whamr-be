@@ -122,6 +122,13 @@ Set this before `npm install` and before running the server.
 | GET    | `/api/auth/me`          | 🔑   | —                             | Current authenticated user.                                                 |
 | GET    | `/api/users`            | 🔑   | —                             | List users.                                                                 |
 | GET    | `/api/users/:id`        | 🔑   | —                             | Get a user by id (UUID).                                                     |
+| GET    | `/api/favorites`        | 🔑   | —                             | List the current user's favourited meme ids: `{ meme_ids }`.                |
+| POST   | `/api/favorites`        | 🔑   | `meme_id`                     | Add a favourite (idempotent).                                               |
+| DELETE | `/api/favorites/:memeId`| 🔑   | —                             | Remove a favourite.                                                          |
+| GET    | `/api/comments`         | 🔓   | `?meme_id=`                   | List a meme's comments, newest first: `{ comments }`.                        |
+| POST   | `/api/comments`         | 🔑   | `meme_id, text`               | Post a comment (author name derived from email). Returns `{ comment }`.     |
+| DELETE | `/api/comments/:id`     | 🔑   | —                             | Delete a comment (author or `ADMIN_USER_IDS`).                              |
+| POST   | `/api/comments/:id/report` | 🔑 | —                            | Flag a comment for moderation.                                              |
 
 ### Authentication
 
