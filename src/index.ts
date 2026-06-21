@@ -6,6 +6,7 @@ import userRoutes from './routes/userRoutes';
 import favoritesRoutes from './routes/favoritesRoutes';
 import commentsRoutes from './routes/commentsRoutes';
 import stickerRoutes from './routes/stickerRoutes';
+import whatsappRoutes from './routes/whatsappRoutes';
 
 dotenv.config();
 
@@ -30,7 +31,7 @@ app.get('/', (_req: Request, res: Response) => {
     name: 'whamr-be',
     status: 'ok',
     health: '/health',
-    api: '/api/auth, /api/users, /api/favorites, /api/comments, /api/stickers',
+    api: '/api/auth, /api/users, /api/favorites, /api/comments, /api/stickers, /api/whatsapp',
   });
 });
 
@@ -45,6 +46,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/stickers', stickerRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // 404 fallback
 app.use((_req: Request, res: Response) => {

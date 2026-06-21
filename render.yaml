@@ -41,6 +41,10 @@ services:
       # Max sticker upload size in bytes (buffered in memory). Default 25 MB.
       - key: STICKER_MAX_UPLOAD_BYTES
         value: "26214400"
+      # WhatsApp Cloud API. Pinned Graph version (override only if Meta
+      # deprecates it); token + phone number id are secrets set below.
+      - key: WHATSAPP_API_VERSION
+        value: v21.0
       # Strong secret generated once by Render and kept stable across deploys.
       - key: JWT_SECRET
         generateValue: true
@@ -50,4 +54,10 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: RESEND_API_KEY
+        sync: false
+      # WhatsApp Cloud API credentials (Meta > app > WhatsApp > API Setup).
+      # WHATSAPP_PHONE_NUMBER_ID is the "Phone number ID", not the phone number.
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
         sync: false
