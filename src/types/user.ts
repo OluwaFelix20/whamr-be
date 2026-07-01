@@ -3,6 +3,12 @@ export interface User {
   email: string;
   password_hash: string;
   full_name: string | null;
+  // Public profile fields (added in migration 0008; null until the user sets them).
+  username: string | null;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  cover_url: string | null;
   token_version: number;
   created_at: string;
   updated_at: string;
