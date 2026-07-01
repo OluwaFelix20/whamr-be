@@ -6,6 +6,7 @@ import userRoutes from './routes/userRoutes';
 import favoritesRoutes from './routes/favoritesRoutes';
 import collectionsRoutes from './routes/collectionsRoutes';
 import profilesRoutes from './routes/profilesRoutes';
+import notificationsRoutes from './routes/notificationsRoutes';
 import commentsRoutes from './routes/commentsRoutes';
 import stickerRoutes from './routes/stickerRoutes';
 import whatsappRoutes from './routes/whatsappRoutes';
@@ -33,7 +34,7 @@ app.get('/', (_req: Request, res: Response) => {
     name: 'whamr-be',
     status: 'ok',
     health: '/health',
-    api: '/api/auth, /api/users, /api/favorites, /api/collections, /api/profiles, /api/comments, /api/stickers, /api/whatsapp',
+    api: '/api/auth, /api/users, /api/favorites, /api/collections, /api/profiles, /api/notifications, /api/comments, /api/stickers, /api/whatsapp',
   });
 });
 
@@ -48,6 +49,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/collections', collectionsRoutes);
 app.use('/api/profiles', profilesRoutes);
+app.use('/api/notifications', notificationsRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/stickers', stickerRoutes);
 app.use('/api/whatsapp', whatsappRoutes);

@@ -6,6 +6,7 @@ import {
   followUser,
   unfollowUser,
 } from '../services/profilesService';
+import { notifyFollow } from '../services/notificationsService';
 
 /**
  * Thin HTTP layer over profilesService. Maps the service's typed errors to HTTP
@@ -59,7 +60,16 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 /** POST /api/profiles/:handle/follow */
 export const follow = async (req: Request, res: Response): Promise<void> => {
   try {
-    await followUser(req.user!.sub, String(req.params.handle));
+    const { created, targetId } = await followUser(req.user!.sub, String(req.params.handle));
+    // Notify the followed user, but only on a genuinely new follow. Best-effort:
+    // a notification failure must not fail the follow itself.
+    if (created) {
+      try {
+        await notifyFollow(req.user!.sub, targetId);
+      } catch (notifyErr) {
+        console.error('follow notification failed:', notifyErr);
+      }
+    }
     res.status(200).json({ ok: true, following: true });
   } catch (err) {
     handleError(err, res);

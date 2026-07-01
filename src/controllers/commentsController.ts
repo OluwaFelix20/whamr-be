@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import { notifyComment } from '../services/notificationsService';
 
 /**
  * Public comments on memes. Reading is open (anyone can view a meme's thread);
@@ -65,6 +66,14 @@ export const createComment = async (req: Request, res: Response): Promise<void> 
     if (error) {
       res.status(500).json({ error: error.message });
       return;
+    }
+
+    // Notify others in this meme's comment thread. Best-effort: a notification
+    // failure must not fail the comment.
+    try {
+      await notifyComment(userId, meme_id);
+    } catch (notifyErr) {
+      console.error('comment notification failed:', notifyErr);
     }
 
     res.status(201).json({ comment: data });

@@ -192,8 +192,15 @@ export async function updateMyProfile(
   return data as UserRow;
 }
 
-/** Follow a user (idempotent). Throws SELF if you try to follow yourself. */
-export async function followUser(followerId: string, handle: string): Promise<void> {
+/**
+ * Follow a user (idempotent). Throws SELF if you try to follow yourself.
+ * Returns the target's id and whether this created a NEW follow edge (so the
+ * caller only emits a notification on a genuinely new follow, not a repeat).
+ */
+export async function followUser(
+  followerId: string,
+  handle: string
+): Promise<{ created: boolean; targetId: string }> {
   const target = await resolveUser(handle);
   if (!target) throw new ProfileError('NOT_FOUND', 'Profile not found.');
   if (target.id === followerId) throw new ProfileError('SELF', 'You cannot follow yourself.');
@@ -202,10 +209,14 @@ export async function followUser(followerId: string, handle: string): Promise<vo
     .from('follows')
     .insert({ follower_id: followerId, following_id: target.id });
 
-  // Already following -> treat as success (idempotent).
-  if (error && (error as { code?: string }).code !== '23505') {
+  if (error) {
+    // Already following -> idempotent success, but not a new edge.
+    if ((error as { code?: string }).code === '23505') {
+      return { created: false, targetId: target.id };
+    }
     dbFail('Could not follow user.', error);
   }
+  return { created: true, targetId: target.id };
 }
 
 /** Unfollow a user (idempotent). */
