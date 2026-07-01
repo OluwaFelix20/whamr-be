@@ -34,3 +34,17 @@ export const resetPasswordSchema = z.object({
     .min(8, 'Password must be at least 8 characters.')
     .max(72, 'Password must be at most 72 characters.'),
 });
+
+export const changePasswordSchema = z.object({
+  currentPassword: z
+    .string({ message: 'currentPassword is required.' })
+    .min(1, 'Your current password is required.'),
+  newPassword: z
+    .string({ message: 'newPassword is required.' })
+    .min(8, 'Password must be at least 8 characters.')
+    .max(72, 'Password must be at most 72 characters.'),
+});
+
+export const deleteAccountSchema = z.object({
+  password: z.string({ message: 'password is required.' }).min(1, 'Your password is required.'),
+});

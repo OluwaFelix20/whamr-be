@@ -6,6 +6,7 @@ import { signToken } from '../utils/jwt';
 import { generateRefreshToken, hashToken } from '../utils/refreshToken';
 import { generatePasswordResetToken } from '../utils/passwordReset';
 import { sendPasswordResetEmail } from '../utils/mailer';
+import { deleteUserAccount } from '../services/accountService';
 
 const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS ?? 10);
 
@@ -147,6 +148,104 @@ export const me = async (req: Request, res: Response): Promise<void> => {
     }
 
     res.status(200).json({ user: toPublicUser(user as User) });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
+/**
+ * POST /api/auth/change-password
+ * Change the password for the authenticated user after verifying their current
+ * one. Bumps token_version + revokes refresh tokens (logs out all sessions), so
+ * the client must sign in again with the new password.
+ */
+export const changePassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.sub;
+    const { currentPassword, newPassword } = req.body as {
+      currentPassword: string;
+      newPassword: string;
+    };
+
+    const { data: userRow, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    if (!userRow) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    const user = userRow as User;
+    const matches = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!matches) {
+      res.status(400).json({ error: 'Your current password is incorrect.' });
+      return;
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password_hash, token_version: user.token_version + 1 })
+      .eq('id', userId);
+
+    if (updateError) {
+      res.status(500).json({ error: updateError.message });
+      return;
+    }
+
+    // Revoke all refresh tokens — every existing session is now invalid.
+    await supabase
+      .from('refresh_tokens')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .is('revoked_at', null);
+
+    res.status(200).json({ message: 'Password changed. Please sign in again.' });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
+/**
+ * DELETE /api/auth/account
+ * Permanently delete the authenticated user and all their data, after
+ * confirming their password.
+ */
+export const deleteAccount = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.sub;
+    const { password } = req.body as { password: string };
+
+    const { data: userRow, error } = await supabase
+      .from('users')
+      .select('password_hash')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    if (!userRow) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    const matches = await bcrypt.compare(password, (userRow as { password_hash: string }).password_hash);
+    if (!matches) {
+      res.status(400).json({ error: 'Your password is incorrect.' });
+      return;
+    }
+
+    await deleteUserAccount(userId);
+    res.status(200).json({ ok: true, message: 'Your account has been deleted.' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
