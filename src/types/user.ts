@@ -9,6 +9,9 @@ export interface User {
   bio: string | null;
   avatar_url: string | null;
   cover_url: string | null;
+  // Onboarding fields (migration 0010).
+  interests: string[] | null;
+  onboarded_at: string | null;
   token_version: number;
   created_at: string;
   updated_at: string;

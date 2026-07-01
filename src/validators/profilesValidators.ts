@@ -25,6 +25,12 @@ const httpsUrl = z
   .refine((u) => u.startsWith('https://'), 'URL must start with https://')
   .nullable();
 
+/** Interests: up to 20 short category slugs (set during onboarding). */
+const interests = z
+  .array(z.string().trim().min(1).max(40))
+  .max(20, 'Too many interests (max 20).')
+  .nullable();
+
 /** PATCH /api/profiles/me */
 export const updateProfileSchema = z
   .object({
@@ -33,6 +39,7 @@ export const updateProfileSchema = z
     bio: bio.optional(),
     avatar_url: httpsUrl.optional(),
     cover_url: httpsUrl.optional(),
+    interests: interests.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: 'Provide at least one field to update.',

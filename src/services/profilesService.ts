@@ -166,6 +166,7 @@ export async function updateMyProfile(
     bio?: string | null;
     avatar_url?: string | null;
     cover_url?: string | null;
+    interests?: string[] | null;
   }
 ): Promise<UserRow> {
   const update: Record<string, unknown> = {};
@@ -174,6 +175,7 @@ export async function updateMyProfile(
   if (patch.bio !== undefined) update.bio = patch.bio;
   if (patch.avatar_url !== undefined) update.avatar_url = patch.avatar_url;
   if (patch.cover_url !== undefined) update.cover_url = patch.cover_url;
+  if (patch.interests !== undefined) update.interests = patch.interests;
 
   const { data, error } = await supabase
     .from('users')
@@ -217,6 +219,68 @@ export async function followUser(
     dbFail('Could not follow user.', error);
   }
   return { created: true, targetId: target.id };
+}
+
+export interface SuggestedProfile {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  followers: number;
+}
+
+/**
+ * Suggest people to follow (used by onboarding): users with a username set,
+ * ranked by follower count, excluding the requester and anyone they already
+ * follow. Tallies follow edges in code — fine at the current scale; revisit
+ * with an aggregate/materialised count if the follows table grows large.
+ */
+export async function suggestedProfiles(requesterId: string, limit = 8): Promise<SuggestedProfile[]> {
+  const { data: followingRows, error: fErr } = await supabase
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', requesterId);
+  if (fErr) dbFail('Could not load suggestions.', fErr);
+  const exclude = new Set<string>((followingRows ?? []).map((r) => r.following_id as string));
+  exclude.add(requesterId);
+
+  const { data: allFollows, error: afErr } = await supabase.from('follows').select('following_id');
+  if (afErr) dbFail('Could not load suggestions.', afErr);
+  const counts = new Map<string, number>();
+  for (const r of (allFollows ?? []) as Array<{ following_id: string }>) {
+    counts.set(r.following_id, (counts.get(r.following_id) ?? 0) + 1);
+  }
+
+  const { data: users, error: uErr } = await supabase
+    .from('users')
+    .select('id, username, display_name, avatar_url, bio')
+    .not('username', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (uErr) dbFail('Could not load suggestions.', uErr);
+
+  return (users ?? [])
+    .filter((u) => !exclude.has(u.id as string))
+    .map((u) => ({
+      id: u.id as string,
+      username: (u.username as string) ?? null,
+      display_name: (u.display_name as string) ?? null,
+      avatar_url: (u.avatar_url as string) ?? null,
+      bio: (u.bio as string) ?? null,
+      followers: counts.get(u.id as string) ?? 0,
+    }))
+    .sort((a, b) => b.followers - a.followers)
+    .slice(0, limit);
+}
+
+/** Mark the user's onboarding complete (stamps onboarded_at). */
+export async function markOnboarded(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('users')
+    .update({ onboarded_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (error) dbFail('Could not complete onboarding.', error);
 }
 
 /** Unfollow a user (idempotent). */

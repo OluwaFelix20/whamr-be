@@ -5,6 +5,8 @@ import {
   updateMyProfile,
   followUser,
   unfollowUser,
+  suggestedProfiles,
+  markOnboarded,
 } from '../services/profilesService';
 import { notifyFollow } from '../services/notificationsService';
 
@@ -49,9 +51,30 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       bio?: string | null;
       avatar_url?: string | null;
       cover_url?: string | null;
+      interests?: string[] | null;
     };
     const profile = await updateMyProfile(req.user!.sub, patch);
     res.status(200).json({ profile });
+  } catch (err) {
+    handleError(err, res);
+  }
+};
+
+/** GET /api/profiles/suggested — people to follow (onboarding). */
+export const getSuggested = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const suggestions = await suggestedProfiles(req.user!.sub);
+    res.status(200).json({ suggestions });
+  } catch (err) {
+    handleError(err, res);
+  }
+};
+
+/** POST /api/profiles/me/onboarded — mark onboarding complete. */
+export const completeOnboarding = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await markOnboarded(req.user!.sub);
+    res.status(200).json({ ok: true });
   } catch (err) {
     handleError(err, res);
   }

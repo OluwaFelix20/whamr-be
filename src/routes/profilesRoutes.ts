@@ -4,6 +4,8 @@ import {
   updateProfile,
   follow,
   unfollow,
+  getSuggested,
+  completeOnboarding,
 } from '../controllers/profilesController';
 import { authenticate } from '../middleware/authMiddleware';
 import { optionalAuthenticate } from '../middleware/optionalAuthMiddleware';
@@ -14,6 +16,10 @@ const router = Router();
 
 // Edit own profile. Declared before "/:handle" so "me" isn't treated as a handle.
 router.patch('/me', authenticate, validate(updateProfileSchema), updateProfile);
+router.post('/me/onboarded', authenticate, completeOnboarding);
+
+// People to follow (onboarding). Literal path — before the "/:handle" param.
+router.get('/suggested', authenticate, getSuggested);
 
 // Public profile view. Optional auth attaches the viewer (for is_self /
 // is_following) but never rejects, so signed-out visitors can still view.
